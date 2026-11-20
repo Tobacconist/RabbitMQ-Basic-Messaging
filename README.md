@@ -1,26 +1,34 @@
-#  RabbitMQ Basic Messaging Simulation
+# RabbitMQ Messaging System
 
-> A C# console application project developed to understand and demonstrate the core mechanics of RabbitMQ and message brokering.
+Producer, `hello` kuyruğuna mesaj yazar; Consumer aynı kuyruğu dinleyip mesajları ekrana basar. .NET 10 ve RabbitMQ.Client 7.x ile yazılmış iki küçük konsol uygulamasıdır.
 
-This project was built during my internship to study distributed message communication, queue structures, and the decoupling of applications. It demonstrates the fundamental concepts of sending and receiving messages using RabbitMQ's basic implementation.
+## Teknik tercihler
 
-##  What I Learned & Implemented
+- **Manuel ack**: Consumer mesajı işledikten sonra `BasicAck` gönderir. İşleme sırasında hata olursa `BasicNack` ile mesaj kuyruğa geri döner. `autoAck` kullanılsaydı process çöktüğünde mesaj kaybolurdu.
+- **Durable kuyruk, persistent mesaj**: RabbitMQ yeniden başlasa da kuyruk ve içindeki mesajlar diskten geri yüklenir. Kuyruk ayarları iki tarafta aynı olmak zorundadır, aksi halde `PRECONDITION_FAILED` hatası alınır.
+- **Host ayarı**: Sunucu adresi `RABBITMQ_HOST` ortam değişkeninden okunur, tanımlı değilse `localhost` kullanılır.
+- **Hata yönetimi**: Sunucuya ulaşılamazsa iki uygulama da anlaşılır bir mesajla çıkış kodu 1 döner. Consumer Ctrl+C ile bağlantıyı düzgün kapatır.
 
-* **Core RabbitMQ Elements:** Successfully implemented the **Producer** (sends messages), **Queue** (stores messages based on FIFO logic), and **Consumer** (receives messages) architecture.
-* **Exchange Understanding:** Researched how Exchanges direct messages to appropriate queues, specifically learning about `Direct`, `Fanout`, and `Topic` exchange types.
-* **Decoupling:** Understood how message brokers allow different services to communicate asynchronously without being directly connected to each other.
-* **C# Integration:** Used the `RabbitMQ.Client` NuGet package to establish connections, declare queues, and handle message encoding/decoding (UTF-8).
+## Yerelde çalıştırma
 
-##  Built With
+RabbitMQ'yu başlatın:
 
-* C# (.NET Console Application)
-* RabbitMQ.Client (NuGet Package)
-* RabbitMQ Server (Erlang)
+```powershell
+docker run -d --name rabbitmq -p 5672:5672 -p 15672:15672 rabbitmq:4-management
+```
 
-##  How to Run Locally
+Consumer'ı bir terminalde çalıştırın:
 
-1. **Prerequisites:** Ensure you have [RabbitMQ Server](https://www.rabbitmq.com/download.html) installed and running locally on your machine (runs on `localhost`).
-2. Clone the repository.
-3. Open the `.sln` file in Visual Studio.
-4. Set the Solution to **Multiple Startup Projects** (Start both `Producer` and `Consumer` simultaneously).
-5. Run the application. You will see the Producer sending a "Hello World!" message and the Consumer instantly receiving it from the queue.
+```powershell
+dotnet run --project Consumer
+```
+
+Başka bir terminalde mesaj gönderin (mesaj argümanı opsiyoneldir):
+
+```powershell
+dotnet run --project Producer -- "Sipariş #1043 iptal edildi."
+```
+
+Yönetim arayüzü: http://localhost:15672 (kullanıcı `guest`, şifre `guest`).
+
+Eğer `hello` kuyruğu daha önce `durable: false` ile oluşturulduysa, arayüzden silip yeniden çalıştırın.

@@ -1,52 +1,48 @@
-﻿using RabbitMQ.Client;
+﻿using System.Text;
+using RabbitMQ.Client;
 using RabbitMQ.Client.Exceptions;
-using System;
-using System.Text;
-using System.Threading.Tasks;
 
-namespace Producer
+namespace Producer;
+
+class Program
 {
-    class Program
+    const string QueueName = "hello";
+
+    public static async Task<int> Main(string[] args)
     {
-        const string QueueName = "hello";
+        var host = Environment.GetEnvironmentVariable("RABBITMQ_HOST") ?? "localhost";
+        var factory = new ConnectionFactory { HostName = host };
 
-        public static async Task<int> Main()
+        var message = args.Length > 0
+            ? string.Join(' ', args)
+            : "Sipariş #1042 hazırlandı, kargoya verilecek.";
+
+        try
         {
-            var host = Environment.GetEnvironmentVariable("RABBITMQ_HOST") ?? "localhost";
-            var factory = new ConnectionFactory() { HostName = host };
+            await using var connection = await factory.CreateConnectionAsync();
+            await using var channel = await connection.CreateChannelAsync();
 
-            try
-            {
-                using (var connection = await factory.CreateConnectionAsync())
-                using (var channel = await connection.CreateChannelAsync())
-                {
-                    await channel.QueueDeclareAsync(queue: QueueName,
-                                         durable: true,
-                                         exclusive: false,
-                                         autoDelete: false,
-                                         arguments: null);
+            await channel.QueueDeclareAsync(queue: QueueName,
+                                            durable: true,
+                                            exclusive: false,
+                                            autoDelete: false);
 
-                    string message = "Hello World! - Bu mesaj güncel v7 Producer'dan geldi.";
-                    var body = Encoding.UTF8.GetBytes(message);
+            var props = new BasicProperties { DeliveryMode = DeliveryModes.Persistent };
 
-                    var props = new BasicProperties { DeliveryMode = DeliveryModes.Persistent };
+            await channel.BasicPublishAsync(exchange: "",
+                                            routingKey: QueueName,
+                                            mandatory: false,
+                                            basicProperties: props,
+                                            body: Encoding.UTF8.GetBytes(message));
 
-                    await channel.BasicPublishAsync(exchange: "",
-                                         routingKey: QueueName,
-                                         mandatory: false,
-                                         basicProperties: props,
-                                         body: body);
-
-                    Console.WriteLine($" [x] Gönderilen Mesaj: {message}");
-                }
-            }
-            catch (BrokerUnreachableException)
-            {
-                Console.Error.WriteLine($" RabbitMQ'ya bağlanılamadı ({host}). Sunucunun çalıştığından emin olun.");
-                return 1;
-            }
-
-            return 0;
+            Console.WriteLine($" [x] Gönderilen Mesaj: {message}");
         }
+        catch (BrokerUnreachableException)
+        {
+            Console.Error.WriteLine($" RabbitMQ'ya bağlanılamadı ({host}). Sunucunun çalıştığından emin olun.");
+            return 1;
+        }
+
+        return 0;
     }
 }
