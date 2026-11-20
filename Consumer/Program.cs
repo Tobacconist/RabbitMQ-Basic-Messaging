@@ -27,17 +27,23 @@ namespace Consumer
                 // Mesaj geldiğinde tetiklenecek asenkron olay (Event)
                 consumer.ReceivedAsync += async (model, ea) =>
                 {
-                    var body = ea.Body.ToArray();
-                    var message = Encoding.UTF8.GetString(body);
-                    Console.WriteLine($" [x] Alınan Mesaj: {message}");
+                    try
+                    {
+                        var message = Encoding.UTF8.GetString(ea.Body.Span);
+                        Console.WriteLine($" [x] Alınan Mesaj: {message}");
 
-                    // Asenkron metodun tamamlanması için
-                    await Task.CompletedTask;
+                        await channel.BasicAckAsync(ea.DeliveryTag, multiple: false);
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine($" [!] Mesaj işlenemedi: {ex.Message}");
+                        await channel.BasicNackAsync(ea.DeliveryTag, multiple: false, requeue: true);
+                    }
                 };
 
-                // Kuyruğu dinlemeye başla
+                // Ack işlemi mesaj başarıyla işlendikten sonra elle yapılır
                 await channel.BasicConsumeAsync(queue: "hello",
-                                     autoAck: true,
+                                     autoAck: false,
                                      consumer: consumer);
 
                 Console.WriteLine(" Mesajlar bekleniyor... Çıkmak için [Enter] tuşuna basın.");
