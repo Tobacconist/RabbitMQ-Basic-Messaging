@@ -17,7 +17,7 @@ namespace Producer
             {
                 // Kuyruk tanımlama 
                 await channel.QueueDeclareAsync(queue: "hello",
-                                     durable: false,
+                                     durable: true,
                                      exclusive: false,
                                      autoDelete: false,
                                      arguments: null);
@@ -26,8 +26,12 @@ namespace Producer
                 var body = Encoding.UTF8.GetBytes(message);
 
                 // Mesajı gönderme
+                var props = new BasicProperties { DeliveryMode = DeliveryModes.Persistent };
+
                 await channel.BasicPublishAsync(exchange: "",
                                      routingKey: "hello",
+                                     mandatory: false,
+                                     basicProperties: props,
                                      body: body);
 
                 Console.WriteLine($" [x] Gönderilen Mesaj: {message}");

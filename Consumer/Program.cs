@@ -17,7 +17,7 @@ namespace Consumer
             {
                 // Kuyruk tanımlama
                 await channel.QueueDeclareAsync(queue: "hello",
-                                     durable: false,
+                                     durable: true,
                                      exclusive: false,
                                      autoDelete: false,
                                      arguments: null);
