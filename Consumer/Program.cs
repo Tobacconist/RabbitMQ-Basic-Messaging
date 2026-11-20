@@ -1,54 +1,80 @@
 ﻿using RabbitMQ.Client;
 using RabbitMQ.Client.Events;
+using RabbitMQ.Client.Exceptions;
 using System;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace Consumer
 {
     class Program
     {
-        public static async Task Main()
+        const string QueueName = "hello";
+
+        public static async Task<int> Main()
         {
-            var factory = new ConnectionFactory() { HostName = "localhost" };
+            var host = Environment.GetEnvironmentVariable("RABBITMQ_HOST") ?? "localhost";
+            var factory = new ConnectionFactory() { HostName = host };
 
-            using (var connection = await factory.CreateConnectionAsync())
-            using (var channel = await connection.CreateChannelAsync())
+            using var cts = new CancellationTokenSource();
+            Console.CancelKeyPress += (_, e) =>
             {
-                // Kuyruk tanımlama
-                await channel.QueueDeclareAsync(queue: "hello",
-                                     durable: true,
-                                     exclusive: false,
-                                     autoDelete: false,
-                                     arguments: null);
+                e.Cancel = true;
+                cts.Cancel();
+            };
 
-                var consumer = new AsyncEventingBasicConsumer(channel);
-
-                // Mesaj geldiğinde tetiklenecek asenkron olay (Event)
-                consumer.ReceivedAsync += async (model, ea) =>
+            try
+            {
+                using (var connection = await factory.CreateConnectionAsync(cts.Token))
+                using (var channel = await connection.CreateChannelAsync(cancellationToken: cts.Token))
                 {
-                    try
+                    await channel.QueueDeclareAsync(queue: QueueName,
+                                         durable: true,
+                                         exclusive: false,
+                                         autoDelete: false,
+                                         arguments: null,
+                                         cancellationToken: cts.Token);
+
+                    var consumer = new AsyncEventingBasicConsumer(channel);
+
+                    consumer.ReceivedAsync += async (model, ea) =>
                     {
-                        var message = Encoding.UTF8.GetString(ea.Body.Span);
-                        Console.WriteLine($" [x] Alınan Mesaj: {message}");
+                        try
+                        {
+                            var message = Encoding.UTF8.GetString(ea.Body.Span);
+                            Console.WriteLine($" [x] Alınan Mesaj: {message}");
 
-                        await channel.BasicAckAsync(ea.DeliveryTag, multiple: false);
-                    }
-                    catch (Exception ex)
-                    {
-                        Console.WriteLine($" [!] Mesaj işlenemedi: {ex.Message}");
-                        await channel.BasicNackAsync(ea.DeliveryTag, multiple: false, requeue: true);
-                    }
-                };
+                            await channel.BasicAckAsync(ea.DeliveryTag, multiple: false);
+                        }
+                        catch (Exception ex)
+                        {
+                            Console.WriteLine($" [!] Mesaj işlenemedi: {ex.Message}");
+                            await channel.BasicNackAsync(ea.DeliveryTag, multiple: false, requeue: true);
+                        }
+                    };
 
-                // Ack işlemi mesaj başarıyla işlendikten sonra elle yapılır
-                await channel.BasicConsumeAsync(queue: "hello",
-                                     autoAck: false,
-                                     consumer: consumer);
+                    // Ack işlemi mesaj başarıyla işlendikten sonra elle yapılır
+                    await channel.BasicConsumeAsync(queue: QueueName,
+                                         autoAck: false,
+                                         consumer: consumer,
+                                         cancellationToken: cts.Token);
 
-                Console.WriteLine(" Mesajlar bekleniyor... Çıkmak için [Enter] tuşuna basın.");
-                Console.ReadLine();
+                    Console.WriteLine(" Mesajlar bekleniyor... Çıkmak için Ctrl+C.");
+                    await Task.Delay(Timeout.Infinite, cts.Token);
+                }
             }
+            catch (OperationCanceledException)
+            {
+                Console.WriteLine(" Kapatılıyor.");
+            }
+            catch (BrokerUnreachableException)
+            {
+                Console.Error.WriteLine($" RabbitMQ'ya bağlanılamadı ({host}). Sunucunun çalıştığından emin olun.");
+                return 1;
+            }
+
+            return 0;
         }
     }
 }
