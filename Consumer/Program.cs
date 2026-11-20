@@ -62,6 +62,11 @@ class Program
         {
             Console.WriteLine(" Kapatılıyor.");
         }
+        catch (OperationInterruptedException ex)
+        {
+            Console.Error.WriteLine($" Broker işlemi reddetti: {ex.ShutdownReason?.ReplyText ?? ex.Message}");
+            return 1;
+        }
         catch (BrokerUnreachableException)
         {
             Console.Error.WriteLine($" RabbitMQ'ya bağlanılamadı ({host}). Sunucunun çalıştığından emin olun.");

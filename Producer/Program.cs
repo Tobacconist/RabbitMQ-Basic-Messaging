@@ -37,6 +37,11 @@ class Program
 
             Console.WriteLine($" [x] Gönderilen Mesaj: {message}");
         }
+        catch (OperationInterruptedException ex)
+        {
+            Console.Error.WriteLine($" Broker işlemi reddetti: {ex.ShutdownReason?.ReplyText ?? ex.Message}");
+            return 1;
+        }
         catch (BrokerUnreachableException)
         {
             Console.Error.WriteLine($" RabbitMQ'ya bağlanılamadı ({host}). Sunucunun çalıştığından emin olun.");
